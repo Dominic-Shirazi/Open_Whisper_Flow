@@ -1,0 +1,59 @@
+# AI Agent Files
+agent.md
+gemini.md
+claude.md
+chatgpt.md
+copilot.md
+deepseek.md
+perplexity.md
+mistral.md
+llama.md
+grok.md
+qwen.md
+anthropic.md
+openai.md
+cohere.md
+pi.md
+character.md
+flux.md
+midjourney.md
+dalle.md
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+pythonv/
+
+# IDEs
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
