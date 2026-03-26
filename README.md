@@ -153,3 +153,17 @@ If you want to reach the API from your phone or another computer (like over Tail
 2. Find the line that looks like: `... --host 127.0.0.1 --port 5000`
 3. Change `127.0.0.1` to `0.0.0.0`.
 4. Run `install_service.ps1` again as Administrator to apply the change to the background service. _(Ensure Windows Firewall allows TCP Port 5000)._
+
+---
+
+## Acknowledgments and Attributions
+
+This project relies on several fantastic open-source libraries:
+
+- [Faster-Whisper](https://github.com/SYSTRAN/faster-whisper) (MIT License) - Core transcription engine.
+- [FastAPI](https://github.com/tiangolo/fastapi) (MIT License) - Web framework for the API.
+- [Uvicorn](https://github.com/encode/uvicorn) (BSD 3-Clause) - ASGI web server.
+- [NSSM - the Non-Sucking Service Manager](http://nssm.cc/) (Public Domain) - Used for background Windows Service management.
+- [Requests](https://requests.readthedocs.io/) (Apache 2.0) - HTTP library.
+- [Keyboard](https://github.com/boppreh/keyboard) & [SoundDevice](https://github.com/spatialaudio/python-sounddevice) (MIT License) - Hotkey and audio capture integration.
+- Other helpful libraries including `numpy`, `scipy`, `pyperclip`, `pywin32`, and `python-dotenv`.
