@@ -13,9 +13,9 @@ Potential use: _hit record_ "The movie is Wednesday, I mean Tuesday, actually...
 Added Feature: Android app - local open source version of wispr flow with a floating button to press to record and press to stop. Record as long as you want with no pressure to keep going before it cuts you off. Also works with the 'prompt ai' feature.
 
 <p align="center">
-  <img src="git_images/Screenshot_20260325_215809_Docs.jpg" width="250" />
-  <img src="git_images/Screenshot_20260325_220016_Docs.jpg" width="250" />
-  <img src="git_images/Screenshot_20260325_220046_WhisperRemote.jpg" width="250" />
+  <img src="readme_images/Screenshot_20260325_215809_Docs.jpg" width="250" />
+  <img src="readme_images/Screenshot_20260325_220016_Docs.jpg" width="250" />
+  <img src="readme_images/Screenshot_20260325_220046_WhisperRemote.jpg" width="250" />
 </p>
 
 Running the `small` Whisper model on CUDA (using ~0.6GB of VRAM) with a cheap $12 used Blue microphone off eBay, this thing is _dang near perfect_. It handles long pauses and auto-punctuation with near-zero issues. For how often I use it, it is worth every megabyte of VRAM.Easily start/stop the service from a system tray icon (bottom right corner by your clock)
