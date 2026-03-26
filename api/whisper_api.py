@@ -9,7 +9,7 @@ import re
 import requests
 import json
 # Load configuration from .env file
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
 
 # Configuration
 MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "small.en")

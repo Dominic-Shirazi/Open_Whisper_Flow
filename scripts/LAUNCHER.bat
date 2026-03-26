@@ -1,5 +1,5 @@
 @echo off
-cd /d "%~dp0"
+cd /d "%~dp0.."
 set "BASE_DIR=%cd%"
 set PYTHON=%BASE_DIR%\.venv\Scripts\python.exe
 
@@ -17,7 +17,7 @@ if "%LISTEN_DELAY_SECONDS%"=="" set LISTEN_DELAY_SECONDS=10
 
 echo Starting API...
 if /I "%API_VISIBLE%"=="true" (
-    start "Faster Whisper API" "%PYTHON%" "%BASE_DIR%\whisper_api.py"
+    start "Faster Whisper API" "%PYTHON%" "%BASE_DIR%\api\whisper_api.py"
 ) else (
     echo Background service requested. Ensuring FasterWhisperAPI Windows Service is running...
     net start FasterWhisperAPI 2>nul
@@ -33,7 +33,7 @@ echo Waiting %LISTEN_DELAY_SECONDS% seconds for model to load...
 timeout /t %LISTEN_DELAY_SECONDS% /nobreak
 
 echo Starting Background Watchdog (Invisible)...
-start "Background Watchdog" "%BASE_DIR%\.venv\Scripts\pythonw.exe" "%BASE_DIR%\listener_watchdog.py"
+start "Background Watchdog" "%BASE_DIR%\.venv\Scripts\pythonw.exe" "%BASE_DIR%\client\listener_watchdog.py"
 
 echo Done. You should have heard two beeps if the listener started.
 pause

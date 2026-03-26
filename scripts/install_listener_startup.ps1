@@ -1,6 +1,6 @@
-$BaseDir = $PSScriptRoot
+$BaseDir = Split-Path -Parent $PSScriptRoot
 $Pythonw = Join-Path $BaseDir ".venv\Scripts\pythonw.exe"
-$Watchdog = Join-Path $BaseDir "listener_watchdog.py"
+$Watchdog = Join-Path $BaseDir "client\listener_watchdog.py"
 
 if (-Not (Test-Path $Pythonw)) {
     Write-Host "Error: Could not find pythonw.exe at $Pythonw" -ForegroundColor Red

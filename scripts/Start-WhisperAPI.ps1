@@ -1,6 +1,6 @@
-$ScriptDir = $PSScriptRoot
+$ScriptDir = Split-Path -Parent $PSScriptRoot
 $PythonPath = Join-Path $ScriptDir ".venv\Scripts\python.exe"
-$ScriptPath = Join-Path $ScriptDir "whisper_api.py"
+$ScriptPath = Join-Path $ScriptDir "api\whisper_api.py"
 
 Write-Host "Starting Whisper API Keep-Alive... (Press Ctrl+C to stop)" -ForegroundColor Cyan
 

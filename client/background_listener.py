@@ -13,7 +13,7 @@ import requests
 from dotenv import load_dotenv
 
 # Load env file in the child too
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
 
 # Configuration
 SAMPLE_RATE = 44100

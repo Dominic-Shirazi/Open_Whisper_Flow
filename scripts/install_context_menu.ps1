@@ -3,9 +3,9 @@
 $ErrorActionPreference = "Stop"
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$BaseDir = $scriptDir
+$BaseDir = Split-Path -Parent $scriptDir
 $PythonPath = Join-Path $BaseDir ".venv\Scripts\pythonw.exe"
-$ScriptPath = Join-Path $BaseDir "transcribe_file.py"
+$ScriptPath = Join-Path $BaseDir "client\transcribe_file.py"
 
 Write-Host "--- Installing Right-Click 'Transcribe' Context Menu ---"
 

@@ -4,7 +4,7 @@ $ErrorActionPreference = "Stop"
 
 $ServiceName = "FasterWhisperAPI"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$BaseDir = $scriptDir
+$BaseDir = Split-Path -Parent $scriptDir
 $PythonPath = Join-Path $BaseDir ".venv\Scripts\python.exe"
 
 Write-Host "--- Faster-Whisper API Service Installer ---"
@@ -50,7 +50,7 @@ if ($existingService) {
 
 # 4. Install Service with NSSM
 Write-Host "Installing $ServiceName via NSSM..."
-& $NSSM_EXE install $ServiceName $PythonPath "-m uvicorn whisper_api:app --host 0.0.0.0 --port 5000"
+& $NSSM_EXE install $ServiceName $PythonPath "-m uvicorn api.whisper_api:app --host 0.0.0.0 --port 5000"
 & $NSSM_EXE set $ServiceName AppDirectory $BaseDir
 & $NSSM_EXE set $ServiceName Description "Faster-Whisper local API"
 & $NSSM_EXE set $ServiceName Start SERVICE_AUTO_START
