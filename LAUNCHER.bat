@@ -1,5 +1,6 @@
 @echo off
-set BASE_DIR=C:\Users\persi\Documents\Faster_Whisper_API
+cd /d "%~dp0"
+set "BASE_DIR=%cd%"
 set PYTHON=%BASE_DIR%\.venv\Scripts\python.exe
 
 :: Read .env file (ignoring comments and empty lines)

@@ -1,5 +1,6 @@
-$PythonPath = "c:\Users\persi\Documents\evokAI\.venv\Scripts\python.exe"
-$ScriptPath = "c:\Users\persi\Documents\evokAI\Voice\whisper_api.py"
+$ScriptDir = $PSScriptRoot
+$PythonPath = Join-Path $ScriptDir ".venv\Scripts\python.exe"
+$ScriptPath = Join-Path $ScriptDir "whisper_api.py"
 
 Write-Host "Starting Whisper API Keep-Alive... (Press Ctrl+C to stop)" -ForegroundColor Cyan
 

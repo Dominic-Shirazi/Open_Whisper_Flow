@@ -14,6 +14,8 @@ load_dotenv()
 # Configuration
 MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "small.en")
 DEVICE = os.getenv("WHISPER_DEVICE", "cuda")
+OLLAMA_API_URL = os.getenv("OLLAMA_API_URL", "http://192.168.0.201:11434/api/generate")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gpt-oss:20b")
 COMPUTE_TYPE = "float16"
 TEMP_DIR = os.path.dirname(__file__)
 
@@ -59,23 +61,23 @@ def process_transcribed_text(text: str) -> str:
         trigger_pattern = r"\b(" + "|".join(trigger_list) + r")\b"
         if re.search(trigger_pattern, text, flags=re.IGNORECASE):
             print("[API] Trigger word found, processing via Ollama (gpt-oss:20b)...")
-        try:
-            response = requests.post(
-                "http://192.168.0.201:11434/api/generate",
-                json={
-                    "model": "gpt-oss:20b",
-                    "prompt": text,
-                    "system": "You are the personal copy editor for Dominic Shirazi. Clean up the following dictated text for clarity and flow. Fix transcription errors and remove filler words. Do not use bullet points. If the text contains 'prompt ai' followed by instructions, prioritize those instructions. Return ONLY the corrected text, without any additional commentary or explanation unless it's asked for by the user.",
-                    "stream": False,
-                },
-                timeout=60,
-            )
-            response.raise_for_status()
-            data = response.json()
-            return data.get("response", text).strip()
-        except Exception as e:
-            print(f"[API] Ollama Fast-Path error: {e}")
-            return text
+            try:
+                response = requests.post(
+                    OLLAMA_API_URL,
+                    json={
+                        "model": OLLAMA_MODEL,
+                        "prompt": text,
+                        "system": "You are the personal copy editor for Dominic Shirazi. Clean up the following dictated text for clarity and flow. Fix transcription errors and remove filler words. Do not use bullet points. If the text contains 'prompt ai' followed by instructions, prioritize those instructions. Return ONLY the corrected text, without any additional commentary or explanation unless it's asked for by the user.",
+                        "stream": False,
+                    },
+                    timeout=60,
+                )
+                response.raise_for_status()
+                data = response.json()
+                return data.get("response", text).strip()
+            except Exception as e:
+                print(f"[API] Ollama Fast-Path error: {e}")
+                return text
 
     # No trigger found, return text with only the name corrections
     return text
