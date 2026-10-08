@@ -81,6 +81,8 @@ api/bin/
 api/fastpath.log
 # Transcript corpus (runtime) -- contains the user's actual dictated speech, private
 api/transcripts.log
+# Listener hotkey-handler error trail (runtime)
+client/listener_errors.log
 .gstack/
 # Agent working scratch (research artifacts, agy done-markers)
 .agentfiles/

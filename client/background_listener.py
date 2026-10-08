@@ -15,6 +15,7 @@ import requests
 from dotenv import load_dotenv
 import json
 import sys
+import traceback
 
 # Add parent directory to sys.path so we can import our human_typing module
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -35,6 +36,7 @@ MAX_DURATION_MINS = 10
 MIN_RECORDING_DURATION_SEC = float(os.environ.get("MIN_RECORDING_DURATION_SEC", 0.4))
 LISTENER_RESTART_INTERVAL_MINS = int(os.environ.get("LISTENER_RESTART_INTERVAL_MINS", 10))
 WAV_OUTPUT_PATH = os.path.join(os.path.dirname(__file__), 'temp_recording.wav')
+ERROR_LOG_PATH = os.path.join(os.path.dirname(__file__), 'listener_errors.log')
 API_URL = os.environ.get("WHISPER_API_URL", "http://127.0.0.1:5000/transcribe")
 
 # How long to let Chrome Remote Desktop push the local clipboard to the remote
@@ -246,12 +248,15 @@ def start_recording():
     print("[Listener] Starting recording...")
     beep_start()
     recording_data = []
-    recording_active = True
     recording_start_time = time.time()
-    
+
+    # Open the mic BEFORE flipping recording_active. If the open raises, the
+    # flag must stay False, otherwise idle_monitor thinks we're mid-recording
+    # forever and never does its periodic self-restart.
     stream = sd.InputStream(samplerate=SAMPLE_RATE, channels=CHANNELS, callback=callback)
     stream.start()
-    
+    recording_active = True
+
     # Start timeout monitor
     threading.Thread(target=timeout_monitor, daemon=True).start()
 
@@ -392,13 +397,46 @@ def transcribe_and_paste():
             overlay.update_label_safe(error_msg)
             time.sleep(3)
 
+def _reset_after_hotkey_error():
+    """Put recording state back to idle after a failed start/stop."""
+    global recording_active, stream
+    recording_active = False
+    if stream:
+        try:
+            stream.close()
+        except Exception:
+            pass
+        stream = None
+
+
 def toggle_recording():
+    # This runs on the `keyboard` library's event-processing thread, and that
+    # library does NOT catch exceptions from non-suppressing hotkeys: a single
+    # raise (e.g. PortAudioError when the mic is unplugged/asleep) kills the
+    # thread, and every later backtick press is silently queued forever while
+    # the process stays alive -- so the watchdog never notices. Never let
+    # anything escape from here.
     global last_active_time
     last_active_time = time.time()
-    if recording_active:
-        stop_recording()
-    else:
-        start_recording()
+    try:
+        if recording_active:
+            stop_recording()
+        else:
+            start_recording()
+    except Exception:
+        err = traceback.format_exc()
+        print(f"[Listener] Hotkey handler failed, hotkey stays alive:\n{err}")
+        # pythonw discards stdout, so keep a file trail of what went wrong.
+        try:
+            with open(ERROR_LOG_PATH, "a", encoding="utf-8") as f:
+                f.write(f"--- {time.strftime('%Y-%m-%d %H:%M:%S')}\n{err}\n")
+        except Exception:
+            pass
+        _reset_after_hotkey_error()
+        try:
+            winsound.Beep(300, 300)  # low buzz = "mic failed, press again"
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     # Startup sound (Rising tone) — only on the first launch. The watchdog sets
