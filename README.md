@@ -17,6 +17,9 @@ Added feature: say 'prompt ai roast' / 'prompt roast', 'prompt tiktok' (also rec
 
 Mean mode runs on a local uncensored model so it won't refuse. Pull it once before first use: `ollama pull huihui_ai/qwen2.5-abliterate:7b` (or set `OLLAMA_ROAST_MODEL` in `.env` to whatever uncensored model you prefer). Because triggers are detected server-side, this works from the Android app and any other client with no changes.
 
+**_UPDATE 4_**
+Added feature: Automatic Ollama LLM warmup at startup. When the API service starts or restarts, it asynchronously preloads your configured Ollama editing model (e.g. `qwen2.5:7b-instruct-q4_K_M`) with `keep_alive` enabled, keeping it resident in GPU VRAM alongside Faster-Whisper so voice edits execute in under a second without cold-start delay.
+
 **Android App Repo Here:** https://github.com/Dominic-Shirazi/WhisperRemote_for_Android
 
 **Apk in repo:** /ANDROID_APK_HERE/app-debug.apk
@@ -32,12 +35,14 @@ Running the `small` Whisper model on CUDA (using ~0.6GB of VRAM) with a cheap $1
 ## Features
 
 - **Local API**: Fast transcription using CTranslate2 and ONNX.
+- **Automatic LLM VRAM Warmup**: Asynchronously preloads and pins the configured Ollama model in GPU memory on API startup.
 - **Background Listener**: Use the backtick (`` ` ``) to start and stop recording. (top left of keyboard, directly under the Esc key)
 - **Remote Desktop Paste**: Works inside Chrome Remote Desktop sessions. The listener forces the local clipboard to sync to the remote machine before pasting, so dictation drops into apps on the far end just like it does locally (see Troubleshooting).
 - **Context Menu Integration**: Right-click any audio and most video files in Windows Explorer to "Transcribe to Clipboard".
 - **Android App**: Local open source version of wispr flow with a floating button to press to record and press to stop. Record as long as you want with no pressure to keep going before it cuts you off. Also works with the 'prompt ai' feature.
 - **Windows Service**: The API runs as a background service that starts automatically when you log in and restarts itself if it crashes.
-- **Windows Tray Icon**: The API runs as a background service that starts automatically when you log in and restarts itself if it crashes.
+- **Windows Tray Icon**: Easily start/stop/restart the listener and configure settings from the system tray.
+
 
 ---
 
