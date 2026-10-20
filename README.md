@@ -30,7 +30,20 @@ Added feature: Automatic Ollama LLM warmup at startup. When the API service star
   <img src="readme_images/Screenshot_20260325_220046_WhisperRemote.jpg" width="250" />
 </p>
 
-Running the `small` Whisper model on CUDA (using ~0.6GB of VRAM) with a cheap $12 used Blue microphone off eBay, this thing is _dang near perfect_. It handles long pauses and auto-punctuation with near-zero issues. For how often I use it, it is worth every megabyte of VRAM.Easily start/stop the service from a system tray icon (bottom right corner by your clock)
+Running the `large-v3-turbo` Whisper model on CUDA (about 2.1 GB of VRAM, fp16) with a cheap $12 used Blue microphone off eBay, this thing is _dang near perfect_. It handles long pauses and auto-punctuation with near-zero issues. On an RTX 2070 Super, a 16-second clip transcribes in about 0.7 s and a 72-second clip in about 2 s. Turbo has twice the decoder depth of `distil-large-v3` for only ~8% more latency, and it needs roughly half the latency and VRAM of full `large-v3`. Smaller cards can drop to `small.en` (~0.6 GB) by changing `WHISPER_MODEL_SIZE` in `.env`. Easily start/stop the service from a system tray icon (bottom right corner by your clock).
+
+### Voice triggers
+
+Triggers are detected server-side, so they work from every client (desktop hotkey, Android app, right-click "Transcribe to Clipboard"). Patterns live in `api/processing_config.json` and `.env`.
+
+| Say | What happens |
+|---|---|
+| `prompt ai` + instructions | Everything before the trigger is the text; everything after is the instruction. Ollama edits the text accordingly. Bare `prompt ai` with no instruction just cleans the text up. Misheard variants like "prompt A.I.", "prompt a eye" and "prompte I" also match. |
+| `end prompt` | Optional terminator that marks the end of a spoken instruction. |
+| `prompt roast` / `prompt tiktok` (or "tick tock") / `prompt disses` | Mean mode: rewrites your brain-dump as a social-media reply with a matching insult from `insults.md`. |
+| `tag this clip`, `loud in here`, `restaurant test`, `outdoor test`, `crowd test`, `loud` | Files the audio permanently in `api/audio_corpus/keep/` for model testing. Your transcript is unchanged. Edit the list with `CORPUS_TAG_TRIGGERS` in `.env`. |
+
+Not spoken triggers, but always on: `name_corrections` (e.g. Leslie → Lesley) and `vocabulary` (words Whisper is nudged to spell correctly), both in `processing_config.json`.
 
 ## Features
 

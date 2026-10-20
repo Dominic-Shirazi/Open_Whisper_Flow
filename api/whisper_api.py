@@ -913,7 +913,12 @@ def process_transcribed_text(text: str) -> str:
                             "Output the finished text only, beginning directly with the first "
                             "word. Plain text: no quotes, no markdown, no code fences, no bullet "
                             "points, and no preamble like \"Here is\". Do not summarize, "
-                            "shorten, or add anything the speaker did not say."
+                            "shorten, or add anything the speaker did not say.\n\n"
+                            "An editing instruction from the speaker always overrides every "
+                            "rule above. If they ask you to shorten, summarize, reword, change "
+                            "the tone, use bullets or a list, translate, or add something, do "
+                            "exactly that. The rules above only apply where the instruction "
+                            "doesn't say otherwise."
                         ),
                         "stream": False,
                         # Copy-editing is a low-creativity task; Ollama defaults to
