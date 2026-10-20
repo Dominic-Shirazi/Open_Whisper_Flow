@@ -141,6 +141,33 @@ To add "Transcribe to Clipboard" to your right-click menu for audio files, simpl
 
 _Note: Ensure you have run the Python setup steps above first, as this relies on the virtual environment's pythonw.exe._
 
+---
+
+## API Endpoints
+
+The API listens on port `5000` (all interfaces). Every `POST` endpoint takes an audio file as the multipart field `file`, and all of them share the same loaded Whisper model.
+
+| Endpoint | Method | Returns |
+| --- | --- | --- |
+| `/transcribe` | POST | `{text, language, duration}`. The dictation endpoint: runs voice commands (edit/roast via Ollama) and logs to `transcripts.log`. |
+| `/transcribe_time_stamped` | POST | `{text, segments[{start, end, text}], language, duration}`. Raw Whisper text with segment times, no AI rewriting. |
+| `/transcribe_words` | POST | Same as `/transcribe_time_stamped`, plus `words[{start, end, word, probability}]` on each segment. |
+| `/health` | GET | `{status, model, device, ollama_model, ollama_keep_alive}` |
+| `/warmup` | POST | Preloads the Ollama edit model. Returns `{status, model}`. |
+
+```bash
+curl -F file=@clip.wav http://127.0.0.1:5000/transcribe_words
+```
+
+### Word-level timestamps (`/transcribe_words`)
+
+Whisper often joins speech across a pause into one long segment. Per-word times let a client split at the pauses. aMemory uses this to interleave the two sides of a call, which it transcribes on separate channels. Notes:
+
+- Decode settings match `/transcribe_time_stamped` (beam 5, VAD, no previous-text conditioning, same hotwords), with `word_timestamps=True` added.
+- Segment `start`/`end` are snapped to the first and last word, so they are tighter than on `/transcribe_time_stamped`. On long clips (over about a minute), the segment split and sometimes the wording can differ a little. Treat the word times as the source of truth.
+- Whisper sometimes folds a pause into the word before it (one word with an unusually long duration) instead of leaving a gap between words. When splitting, check for long words as well as gaps.
+- Transcript text is never logged.
+
 ## Project Files
 
 - `whisper_api.py`: The FastAPI backend server.

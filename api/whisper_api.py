@@ -1074,6 +1074,63 @@ async def transcribe_time_stamped(file: UploadFile = File(...)):
             os.remove(temp_path)
 
 
+# Reason for edit: Added /transcribe_words for aMemory (per-channel call transcripts).
+# Whisper merges speech across pauses into one segment; per-word times let the
+# caller split at pauses and interleave both sides of a call. Same model and the
+# same decode settings as /transcribe_time_stamped, so text/segments match it.
+# Never logs transcript text.
+@app.post("/transcribe_words")
+async def transcribe_words(file: UploadFile = File(...)):
+    file_id = str(uuid.uuid4())
+    temp_path = os.path.join(TEMP_DIR, f"{file_id}_{file.filename}")
+
+    try:
+        with open(temp_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        segments_gen, info = model.transcribe(
+            temp_path,
+            beam_size=5,
+            vad_filter=True,
+            condition_on_previous_text=False,
+            hotwords=HOTWORDS,
+            word_timestamps=True,
+        )
+        segments = list(segments_gen)
+
+        full_text = "".join([segment.text for segment in segments]).strip()
+
+        formatted_segments = []
+        for segment in segments:
+            formatted_segments.append({
+                "start": segment.start,
+                "end": segment.end,
+                "text": segment.text.strip(),
+                "words": [
+                    {
+                        "start": w.start,
+                        "end": w.end,
+                        "word": w.word,
+                        "probability": w.probability,
+                    }
+                    for w in (segment.words or [])
+                ],
+            })
+
+        return {
+            "text": full_text,
+            "segments": formatted_segments,
+            "language": info.language,
+            "duration": info.duration,
+        }
+    except Exception as e:
+        print(f"[API] Word-timestamp transcription error: {type(e).__name__}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+
 # Reason for edit: Added Ollama edit model metadata to /health and added /warmup endpoint to trigger manual preload
 @app.get("/health")
 async def health():
