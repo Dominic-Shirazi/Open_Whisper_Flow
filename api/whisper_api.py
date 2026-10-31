@@ -42,6 +42,20 @@ OLLAMA_API_URL = os.getenv("OLLAMA_API_URL", "http://127.0.0.1:11434/api/generat
 OLLAMA_EDIT_API_URL = os.getenv("OLLAMA_EDIT_API_URL", OLLAMA_API_URL)
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b-instruct-q4_K_M")
 
+# Optional OpenAI-compatible edit backend (e.g. llama.cpp server on ai-worker3).
+# When EDIT_LLM_BASE_URL is set, 'prompt ai' edits go to <base>/chat/completions
+# instead of Ollama, and the local Ollama warmup is skipped.
+EDIT_LLM_BASE_URL = os.getenv("EDIT_LLM_BASE_URL", "").strip().rstrip("/")
+EDIT_LLM_MODEL = os.getenv("EDIT_LLM_MODEL", "").strip()
+EDIT_LLM_API_KEY = os.getenv("EDIT_LLM_API_KEY", "").strip()
+# Reasoning models think by default (~200 tokens, several seconds per edit).
+# true sends chat_template_kwargs.enable_thinking=false so it answers directly.
+EDIT_LLM_NO_THINK = os.getenv("EDIT_LLM_NO_THINK", "true").strip().lower() in ("1", "true", "yes", "on")
+EDIT_LLM_TIMEOUT = float(os.getenv("EDIT_LLM_TIMEOUT_SECONDS", "60"))
+USE_OPENAI_EDIT = bool(EDIT_LLM_BASE_URL)
+EDIT_MODEL_NAME = EDIT_LLM_MODEL if USE_OPENAI_EDIT else OLLAMA_MODEL
+EDIT_ENDPOINT = f"{EDIT_LLM_BASE_URL}/chat/completions" if USE_OPENAI_EDIT else OLLAMA_EDIT_API_URL
+
 
 def _parse_keep_alive(raw: str):
     """Ollama's keep_alive accepts a number of seconds or a duration string
@@ -59,6 +73,9 @@ def _parse_keep_alive(raw: str):
 # load pays for it; every later one goes straight to generating. Measured on this
 # box with qwen2.5:7b-instruct-q4_K_M: 5.5s cold vs 0.85s warm, ~7.5 GB resident.
 OLLAMA_EDIT_KEEP_ALIVE = _parse_keep_alive(os.getenv("OLLAMA_EDIT_KEEP_ALIVE", "-1"))
+# Preload + pin the Ollama edit model on every API start (boot and each
+# RESTART_INTERVAL_HOURS restart). false = let it load on first use instead.
+OLLAMA_EDIT_PRELOAD = os.getenv("OLLAMA_EDIT_PRELOAD", "true").strip().lower() in ("1", "true", "yes", "on")
 OLLAMA_ROAST_MODEL = os.getenv("OLLAMA_ROAST_MODEL", "chatgpt1/qwythos-9b-claude-mythos-5-1m-abliterated:latest")
 COMPUTE_TYPE = "float16"
 TEMP_DIR = os.path.dirname(__file__)
@@ -286,6 +303,14 @@ def trigger_ollama_warmup():
     if _warmup_started:
         return
     _warmup_started = True
+    if not OLLAMA_EDIT_PRELOAD:
+        _fastlog("[Warmup] OLLAMA_EDIT_PRELOAD=false; skipping Ollama preload.")
+        return
+    if USE_OPENAI_EDIT:
+        # Remote server keeps its own model loaded; don't pin a local Ollama
+        # model in VRAM that nothing will use.
+        _fastlog(f"[Warmup] Edit backend is {EDIT_ENDPOINT} ({EDIT_MODEL_NAME}); skipping Ollama preload.")
+        return
     try:
         start_async_ollama_warmup(
             api_url=OLLAMA_EDIT_API_URL,
@@ -853,8 +878,8 @@ def process_transcribed_text(text: str) -> str:
         trigger_pattern = r"\b(" + "|".join(trigger_list) + r")\b"
         if re.search(trigger_pattern, text, flags=re.IGNORECASE):
             print(
-                f"[API] Trigger word found, processing via Ollama "
-                f"({OLLAMA_MODEL} @ {OLLAMA_EDIT_API_URL}, keep_alive={OLLAMA_EDIT_KEEP_ALIVE})..."
+                f"[API] Trigger word found, processing via edit LLM "
+                f"({EDIT_MODEL_NAME} @ {EDIT_ENDPOINT})..."
             )
 
             # Strip the trigger in code and separate the spoken directions from the
@@ -881,66 +906,86 @@ def process_transcribed_text(text: str) -> str:
                 return ""
 
             _fastlog(
-                f"EDIT trigger fired -> POST {OLLAMA_EDIT_API_URL} model={OLLAMA_MODEL} "
-                f"keep_alive={OLLAMA_EDIT_KEEP_ALIVE} | "
+                f"EDIT trigger fired -> POST {EDIT_ENDPOINT} model={EDIT_MODEL_NAME} "
+                f"no_think={EDIT_LLM_NO_THINK if USE_OPENAI_EDIT else 'n/a'} | "
                 f"content={content!r} instruction={instruction!r}"
             )
+            system_prompt = (
+                "You are a personal copy editor for voice dictation. You turn a "
+                "raw speech-to-text transcript into clean, readable text that says "
+                "exactly what the speaker said.\n\n"
+                "Always: remove disfluencies (um, uh, er) and meaningless filler "
+                "(like, you know, I mean); add natural punctuation and "
+                "capitalization; fix obvious speech-to-text errors ONLY when "
+                "context makes the intended word unmistakable (e.g. \"jit hub\" -> "
+                "\"GitHub\"), and when in doubt keep the original word. Preserve the "
+                "speaker's own wording, slang, and casual voice exactly (\"gonna\" "
+                "stays \"gonna\"). Keep every idea the speaker expressed.\n\n"
+                "When writing math or symbols, prefer readable Unicode (e.g. "
+                "\"A² + B² = C²\") so it displays in any text field; only use "
+                "LaTeX notation (\\(...\\), ^, _) if the speaker asks for LaTeX.\n\n"
+                "The message may be plain dictated text to clean up, or it may be "
+                "a labeled \"Editing instruction:\" line followed by a \"Text to "
+                "edit:\" block. When an editing instruction is present, apply it to "
+                "the text and output only the result. When there is no instruction, "
+                "just clean up the text as described above.\n\n"
+                "Output the finished text only, beginning directly with the first "
+                "word. Plain text: no quotes, no markdown, no code fences, no bullet "
+                "points, and no preamble like \"Here is\". Do not summarize, "
+                "shorten, or add anything the speaker did not say.\n\n"
+                "An editing instruction from the speaker always overrides every "
+                "rule above. If they ask you to shorten, summarize, reword, change "
+                "the tone, use bullets or a list, translate, or add something, do "
+                "exactly that. The rules above only apply where the instruction "
+                "doesn't say otherwise."
+            )
             try:
-                response = requests.post(
-                    OLLAMA_EDIT_API_URL,
-                    json={
-                        "model": OLLAMA_MODEL,
-                        "prompt": user_prompt,
-                        "system": (
-                            "You are a personal copy editor for voice dictation. You turn a "
-                            "raw speech-to-text transcript into clean, readable text that says "
-                            "exactly what the speaker said.\n\n"
-                            "Always: remove disfluencies (um, uh, er) and meaningless filler "
-                            "(like, you know, I mean); add natural punctuation and "
-                            "capitalization; fix obvious speech-to-text errors ONLY when "
-                            "context makes the intended word unmistakable (e.g. \"jit hub\" -> "
-                            "\"GitHub\"), and when in doubt keep the original word. Preserve the "
-                            "speaker's own wording, slang, and casual voice exactly (\"gonna\" "
-                            "stays \"gonna\"). Keep every idea the speaker expressed.\n\n"
-                            "When writing math or symbols, prefer readable Unicode (e.g. "
-                            "\"A² + B² = C²\") so it displays in any text field; only use "
-                            "LaTeX notation (\\(...\\), ^, _) if the speaker asks for LaTeX.\n\n"
-                            "The message may be plain dictated text to clean up, or it may be "
-                            "a labeled \"Editing instruction:\" line followed by a \"Text to "
-                            "edit:\" block. When an editing instruction is present, apply it to "
-                            "the text and output only the result. When there is no instruction, "
-                            "just clean up the text as described above.\n\n"
-                            "Output the finished text only, beginning directly with the first "
-                            "word. Plain text: no quotes, no markdown, no code fences, no bullet "
-                            "points, and no preamble like \"Here is\". Do not summarize, "
-                            "shorten, or add anything the speaker did not say.\n\n"
-                            "An editing instruction from the speaker always overrides every "
-                            "rule above. If they ask you to shorten, summarize, reword, change "
-                            "the tone, use bullets or a list, translate, or add something, do "
-                            "exactly that. The rules above only apply where the instruction "
-                            "doesn't say otherwise."
-                        ),
+                if USE_OPENAI_EDIT:
+                    payload = {
+                        "model": EDIT_LLM_MODEL,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                        "temperature": 0.2,
                         "stream": False,
-                        # Copy-editing is a low-creativity task; Ollama defaults to
-                        # 0.8 which invites the model to drift, invent, and add
-                        # preambles. 0.2 keeps it close to the dictated text.
-                        "options": {"temperature": 0.2},
-                        # Pin the model in VRAM (see OLLAMA_EDIT_KEEP_ALIVE) so an
-                        # edit fired hours after the last one is still warm.
-                        "keep_alive": OLLAMA_EDIT_KEEP_ALIVE,
-                    },
-                    timeout=60,
-                )
-                response.raise_for_status()
-                data = response.json()
-                # On any fallback, prefer the trigger-stripped content over the raw
-                # transcript so a failure never pastes back "prompt AI ...".
-                edited = data.get("response", content or text).strip()
+                    }
+                    if EDIT_LLM_NO_THINK:
+                        payload["chat_template_kwargs"] = {"enable_thinking": False}
+                    headers = {"Authorization": f"Bearer {EDIT_LLM_API_KEY}"} if EDIT_LLM_API_KEY else {}
+                    response = requests.post(EDIT_ENDPOINT, json=payload, headers=headers, timeout=EDIT_LLM_TIMEOUT)
+                    response.raise_for_status()
+                    msg = response.json()["choices"][0]["message"]
+                    # strip_think is a safety net in case thinking leaks into content.
+                    edited = strip_think(msg.get("content") or "").strip() or (content or text)
+                else:
+                    response = requests.post(
+                        OLLAMA_EDIT_API_URL,
+                        json={
+                            "model": OLLAMA_MODEL,
+                            "prompt": user_prompt,
+                            "system": system_prompt,
+                            "stream": False,
+                            # Copy-editing is a low-creativity task; Ollama defaults to
+                            # 0.8 which invites the model to drift, invent, and add
+                            # preambles. 0.2 keeps it close to the dictated text.
+                            "options": {"temperature": 0.2},
+                            # Pin the model in VRAM (see OLLAMA_EDIT_KEEP_ALIVE) so an
+                            # edit fired hours after the last one is still warm.
+                            "keep_alive": OLLAMA_EDIT_KEEP_ALIVE,
+                        },
+                        timeout=60,
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+                    # On any fallback, prefer the trigger-stripped content over the raw
+                    # transcript so a failure never pastes back "prompt AI ...".
+                    edited = data.get("response", content or text).strip()
                 _fastlog(f"EDIT ok <- {len(edited)} chars")
                 return edited
             except Exception as e:
-                _fastlog(f"EDIT FAIL @ {OLLAMA_EDIT_API_URL}: {e!r}\n{traceback.format_exc()}")
-                print(f"[API] Ollama Fast-Path error: {e}")
+                _fastlog(f"EDIT FAIL @ {EDIT_ENDPOINT}: {e!r}\n{traceback.format_exc()}")
+                print(f"[API] Edit LLM error: {e}")
                 return content or text
 
     # No trigger found, return text with only the name corrections
@@ -1143,6 +1188,8 @@ async def health():
         "status": "ok",
         "model": MODEL_SIZE,
         "device": DEVICE,
+        "edit_model": EDIT_MODEL_NAME,
+        "edit_endpoint": EDIT_ENDPOINT,
         "ollama_model": OLLAMA_MODEL,
         "ollama_keep_alive": OLLAMA_EDIT_KEEP_ALIVE,
     }
@@ -1151,7 +1198,7 @@ async def health():
 @app.post("/warmup")
 async def warmup():
     trigger_ollama_warmup()
-    return {"status": "warming_up", "model": OLLAMA_MODEL}
+    return {"status": "warming_up", "model": EDIT_MODEL_NAME}
 
 
 
